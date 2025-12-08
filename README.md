@@ -1,27 +1,30 @@
 # Automatic Investment Strategy Calculator
 
-This project is an interactive **automatic investment (DCA) calculator** built with [Streamlit](https://streamlit.io/).  
-It helps you explore how regular contributions, investment horizon, compounding frequency, and annual return affect your long-term wealth.
+This project provides tools to **model and visualize automatic (DCA-style) investment strategies** using Python and Streamlit.
 
-The core logic is implemented in an `Investment` class, and the Streamlit app provides a simple dashboard on top of it.
+There are two main entry points:
+
+- `Interactive_dashboard.py` – a Streamlit web dashboard for interactive exploration.
+- `automatic_investment_plan.py` – a more general simulation script (with optional initial capital) plus an alternative Streamlit interface.
 
 ---
 
 ## Features
 
-- 🔢 **Configurable inputs**
+- 🔢 **Flexible inputs**
   - Investment per period (e.g., monthly contribution)
   - Investment duration in years
-  - Investment frequency (times per year)
-  - Annual interest rate (slider)
+  - Number of investments per year (frequency)
+  - Annual return rate
+  - Optional initial capital (in `automatic_investment_plan.py`)
 - 📋 **Detailed output**
   - Total principal invested
   - Total earnings
   - Total portfolio value (principal + earnings)
-- 📈 **Investment growth graph**
-  - Visualizes the growth of your portfolio over time
-- 🧩 **Reusable class**
-  - `Investment` class can be imported into other Python scripts for further analysis
+- 📈 **Growth visualization**
+  - Matplotlib charts showing portfolio value over time
+- 🧩 **Reusable classes**
+  - `Investment` classes you can import into other projects for further analysis or back-testing.
 
 ---
 
@@ -29,22 +32,28 @@ The core logic is implemented in an `Investment` class, and the Streamlit app pr
 
 > Example: \$4,000 per period, 35 years, 12 investments per year, 12% annual return.
 
-![Automatic Investment Dashboard](images/Interactive_dashboard_screenshot.png)
+<p align="center">
+  <img width="700" src="Interactive_dashboard_screenshot.png" alt="Automatic Investment Dashboard">
+</p>
 
 ---
 
 ## Example Growth Curve
 
-This graph shows the growth of **principal + earnings** (in millions) over the 35-year period for the same example parameters.
+This graph shows the growth of **principal + earnings** (in millions) over a 35-year horizon for the same parameters as above.
 
-![Investment Growth Example](images/Investment_t=35_p=4000.0_a=12_r=12.0.jpg)
+<p align="center">
+  <img width="700" src="Investment_t=35_p=4000.0_a=12_r=12.0.jpg" alt="Investment Growth Example">
+</p>
 
 ---
 
-## Installation
+## Project Structure
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/YiMingChangJ/DCA-Return-Calculator-Auto-investment-.git
-cd DCA-Return-Calculator-Auto-investment-
+```text
+.
+├── Interactive_dashboard.py      # Streamlit dashboard (no initial capital parameter)
+├── automatic_investment_plan.py  # Core simulation + optional Streamlit interface
+├── Interactive_dashboard_screenshot.png
+├── Investment_t=35_p=4000.0_a=12_r=12.0.jpg
+└── README.md
