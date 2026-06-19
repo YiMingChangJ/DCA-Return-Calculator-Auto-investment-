@@ -1,240 +1,125 @@
-# -*- coding: utf-8 -*-
-"""
-This module provides tools to model and calculate the earnings from an automatic investment strategy. 
-The `Investment` class encapsulates the logic for estimating returns based on user-specified parameters 
-such as investment frequency, amount, annual yearly_return rate, and investment duration.
+"""Command-line DCA simulator.
 
-The model assumes compound yearly_return and allows users to visualize the investment growth over time. 
-It offers features to calculate the total earnings, display results, and generate graphs of the investment 
-trajectory, making it a practical tool for financial planning.
+Run from this folder:
 
-Good luck with your investment!
+    python automatic_investment_plan.py --contribution 4000 --years 35 \
+        --times 12 --return 0.12 --plot
+
+Use ``--help`` for the full list of options. For an interactive UI, see
+``Interactive_dashboard.py``.
 """
 from __future__ import annotations
 
+import argparse
+import sys
+from pathlib import Path
+
+# Allow running directly from the project folder without installing.
+_THIS_DIR = Path(__file__).resolve().parent
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
+
+from dca.investment import (  # noqa: E402  (after sys.path tweak)
+    SimulationParams,
+    lump_sum_future_value,
+    simulate,
+    summary,
+)
 
 
-import numpy as np
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Simulate a dollar-cost-averaging investment plan."
+    )
+    p.add_argument("--contribution", type=float, default=4000.0,
+                   help="Amount invested each period (default: 4000)")
+    p.add_argument("--years", type=int, default=35,
+                   help="Investment horizon in years (default: 35)")
+    p.add_argument("--times", type=int, default=12,
+                   help="Periods per year, e.g. 12 for monthly (default: 12)")
+    p.add_argument("--return", dest="annual_return", type=float, default=0.08,
+                   help="Annual return as a decimal, e.g. 0.08 for 8%% (default: 0.08)")
+    p.add_argument("--initial", type=float, default=0.0,
+                   help="Initial capital at t=0 (default: 0)")
+    p.add_argument("--growth", type=float, default=0.0,
+                   help="Annual contribution growth rate, e.g. 0.03 (default: 0)")
+    p.add_argument("--inflation", type=float, default=0.0,
+                   help="Annual inflation, e.g. 0.025 (default: 0)")
+    p.add_argument("--compounding", choices=["effective", "nominal"],
+                   default="effective",
+                   help="Periodic-rate convention (default: effective)")
+    p.add_argument("--timing", choices=["end", "begin"], default="end",
+                   help="Contribution timing within each period (default: end)")
+    p.add_argument("--plot", action="store_true",
+                   help="Show a matplotlib growth chart")
+    p.add_argument("--save-plot", type=str, default=None,
+                   help="Path to save the plot (e.g. growth.png). Implies --plot.")
+    p.add_argument("--csv", type=str, default=None,
+                   help="Write the year-by-year table to this CSV path")
+    return p.parse_args(argv)
 
-from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Union
-import matplotlib.pyplot as plt
 
-class Investment():
-    """
-    The `Investment` class models an automatic investment strategy and calculates total 
-    earnings over a specified period, accounting for compound yearly_return. Users can customize 
-    the investment frequency, input amount, and annual return rate. The class also provides 
-    options to print investment details and visualize growth through graphs.
+def _print_summary(s: dict[str, float]) -> None:
+    print(f"Investment horizon       : {int(s['years'])} years")
+    print(f"Periods per year         : {int(s['times_per_year'])}")
+    print(f"Per-period contribution  : ${s['per_period_contribution']:,.2f}")
+    print(f"Initial capital          : ${s['initial_capital']:,.2f}")
+    print(f"Annual return            : {s['annual_return'] * 100:.2f}%")
+    print(f"Total principal invested : ${s['total_principal']:,.0f}")
+    print(f"Terminal balance         : ${s['terminal_balance']:,.0f}")
+    print(f"Terminal earnings        : ${s['terminal_earnings']:,.0f}")
+    print(f"Return on principal      : {s['return_on_principal'] * 100:.1f}%")
+    if "terminal_balance_real" in s:
+        print(
+            f"Terminal balance (real)  : ${s['terminal_balance_real']:,.0f}"
+            f"   (deflated at {s['inflation'] * 100:.2f}%/yr)"
+        )
 
-    Attributes:
-        price (float): The amount invested at each interval (e.g., weekly, monthly, annually).
-        years (int): The total number of years for the investment.
-        times (int): The number of investments per year (frequency).
-        yearly_return (float): The annual average return rate (as a decimal, e.g., 0.12 for 12%).
-        print (bool): Whether to display investment details.
-        graph (bool): Whether to generate a graph of the investment growth.
 
-    Raises:
-        ValueError: Raised if the number of years or investment frequency is less than 1.
-    """
-    def __init__(self,init:float, price:float, years:int, times:int, yearly_return:float, print_value = False, graph_bool = False, save = False) -> None:
-        self.init = init
-        self.price = price
-        self.years = years
-        self.times = times
-        self.yearly_return = yearly_return
-        self.print = print_value
-        self.graph = graph_bool
-        
-    def Auto_Investment_calculator(self) -> Union[float]:
-        """
-        Calculates the total earnings from an automatic investment strategy.
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    params = SimulationParams(
+        contribution=args.contribution,
+        years=args.years,
+        times_per_year=args.times,
+        annual_return=args.annual_return,
+        initial_capital=args.initial,
+        contribution_growth=args.growth,
+        inflation=args.inflation,
+        compounding=args.compounding,
+        timing=args.timing,
+    )
+    df = simulate(params)
+    s = summary(df, params)
+    _print_summary(s)
 
-        This method computes the total investment and earnings using compound yearly_return 
-        based on the specified parameters (price, years, times, and yearly_return). It allows 
-        users to visualize the growth trajectory through graphs and provides detailed 
-        investment insights.
+    ls = lump_sum_future_value(
+        s["total_principal"], int(args.years), args.annual_return
+    )
+    print(
+        f"Lump-sum benchmark FV    : ${ls:,.0f}"
+        " (if all principal were invested at t=0)"
+    )
 
-        Returns:
-            Union[float]: The total earnings (principal + return) after the specified period.
+    if args.csv:
+        df.to_csv(args.csv, index=False)
+        print(f"Year-by-year table -> {args.csv}")
 
-        Process:
-            - Validates input parameters (e.g., number of years and frequency).
-            - Computes the annual and cumulative returns using compound yearly_return.
-            - Optionally prints detailed investment metrics.
-            - Optionally generates and displays a graph of the investment growth.
+    if args.plot or args.save_plot:
+        # Import only when needed so headless runs do not require matplotlib.
+        from dca.plotting import plot_growth
 
-        Raises:
-            ValueError: If the investment years or frequency is less than 1.
+        fig = plot_growth(df, params)
+        if args.save_plot:
+            fig.savefig(args.save_plot, dpi=200, bbox_inches="tight")
+            print(f"Plot saved -> {args.save_plot}")
+        if args.plot:
+            import matplotlib.pyplot as plt
 
-        Example:
-            >>> Total_earnings = Investment(4000, 35, 12, 0.12, True, True, False).Auto_Investment_calculator()
-        """     
-        
-        'Set up variables'
-        total_assets  = self.init # total investment including earnings/return
-        total_assets_list = [] # list to store total investment
-        yearly_return_rate_period = self.yearly_return/self.times # compound yearly_return rate: Annually/Monthly/Weekly
-        
-        if self.times < 1 or self.years < 1:
-            raise ValueError
-        
-        
-        for i in range(self.years): # years loop
-            yearly_investment = 0
-            if self.times == 1:
-                yearly_investment = self.price
-                total_assets += yearly_investment # Principal + annual return rate
-
-                total_assets = total_assets *(1+self.yearly_return) 
-            else:
-                for j in range(1,self.times+1):
-                    yearly_investment += self.price*(1+yearly_return_rate_period)**j  # monthly yearly return
-                total_assets = total_assets * (1+self.yearly_return)
-                total_assets += yearly_investment # Principal + annual return rate
-                total_assets_list.append(total_assets/1e6)
-        
-        if self.print == True:
-            print("Length of Investment: ", years,'years')
-            print("Average Annual Reture Rate: ",self.yearly_return*100,'%')
-            print("Investment Frequency: ", times)
-            print("Each Investment: ($)", round(price))
-            print("Annual Investment Amount: ($) ", yearly_amount)
-            print("Princial: ($)", round(price*times*years/1e6,3),' millions')
-            print("Return: ($)", round((total_assets-price*times*years)/1e6,2),' millions')
-            print("Principal and Earnings: ($)",round(total_assets/1e6,2), ' millions')
-            # print(total_assets_list)
-        
-        if self.graph == True:
-            size = 26
-            textsize = 26
-            plt.rcParams['lines.linewidth'] = 3
-            plt.rcParams.update({'font.size': size})
-            plt.rc('xtick', labelsize=size)
-            plt.rc('ytick', labelsize=size)
-            plt.rc('text', usetex=True)
-            plt.rc('font', family='serif')
-            
-            fig, ax = plt.subplots(figsize=(8, 5))            
-            ax.plot(total_assets_list, linestyle='-', marker='o', markerfacecolor='r', markeredgecolor='k', markersize=4)
-            ax.text(0.01,total_assets_list[-2],'amount = {}'.format(self.price),fontsize = textsize)
-            ax.text(0.01,total_assets_list[-3],'times = {}'.format(self.times),fontsize = textsize)
-
-            ax.text(0.01,total_assets_list[-4],r'r = {} \%'.format(self.yearly_return*100),fontsize = textsize)
-            # ax[1,0].text(0.03,lim_y-0.65,r'$\eta = {}$'.format(eta2),fontsize = textsize)
-            # ax[1,0].text(0.02,lim_y-0.45,r'$\tilde\alpha_\mathrm m = {}$'.format(alpha_m2),fontsize = textsize)
-
-            ax.set_xlabel('Years',fontsize=size)
-            ax.set_ylabel(r'Principal and Earnings (\$M)',fontsize=size)
-            
-            if save == True:
-                fig.savefig('Investment_t={}_p={}_a={}_r={}.jpg'.format(self.years,self.price,self.times,self.yearly_return*100),format='jpg',dpi=1200,bbox_inches='tight')
-            
             plt.show()
 
-        return total_assets 
+    return 0
 
-years = 29 # number of years investment
-initial_investment = 200000
-yearly_return = 0.21 # annual yearly_return with principal/capital
-times = int(12) # Investment frequency or number of investments
-price = 3200 # automatic invest amount for every time (weekly, monthly, yearly)
-yearly_amount = price*times
 
-print_value = True
-graph = True
-save = False
-Total_earnings = Investment(initial_investment,price,years,times,yearly_return,print_value,graph,save).Auto_Investment_calculator()
-
-#%%
-
-import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Define the Investment class (using your provided class code)
-class Investment():
-    def __init__(self, price: float, years: int, times: int, yearly_return: float, print_value=False, graph_bool=False, save=False) -> None:
-        self.price = price
-        self.years = years
-        self.times = times
-        self.yearly_return = yearly_return
-        self.print = print_value
-        self.graph = graph_bool
-        self.save = save
-
-    def Auto_Investment_calculator(self) -> float:
-        if self.times < 1 or self.years < 1:
-            raise ValueError
-        total_assets = 0
-        total_assets_list = []
-        yearly_return_rate_period = self.yearly_return / self.times
-        for i in range(self.years):
-            yearly_investment = 0
-            if self.times == 1:
-                yearly_investment = self.price
-                total_assets += yearly_investment
-                total_assets = total_assets * (1 + self.yearly_return)
-            else:
-                for j in range(1, self.times + 1):
-                    yearly_investment += self.price * (1 + yearly_return_rate_period) ** j
-                total_assets = total_assets * (1 + self.yearly_return)
-                total_assets += yearly_investment
-                total_assets_list.append(total_assets / 1e6)
-
-        if self.print:
-            st.write(f"Investment Duration: {self.years} years")
-            st.write(f"yearly_return Rate: {self.yearly_return * 100}% annually")
-            st.write(f"Investment Frequency: {self.times} times per year")
-            st.write(f"Each Investment: ${round(self.price)}")
-            st.write(f"Total Principal: ${round(self.price * self.times * self.years / 1e6, 3)} million")
-            st.write(f"Total Earnings: ${round((total_assets - self.price * self.times * self.years) / 1e6, 2)} million")
-            st.write(f"Total Investment (Principal + Earnings): ${round(total_assets / 1e6, 2)} million")
-        
-        if self.graph:
-            self.plot_investment_growth(total_assets_list)
-
-        return total_assets
-
-    def plot_investment_growth(self, total_assets_list):
-        size = 26
-        textsize = 18
-        plt.rcParams['lines.linewidth'] = 3
-        plt.rcParams.update({'font.size': size})
-        plt.rc('xtick', labelsize=size)
-        plt.rc('ytick', labelsize=size)
-        plt.rc('text', usetex=False)
-        plt.rc('font', family='serif')
-
-        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-        ax.plot(total_assets_list, linestyle='-', marker='o', markerfacecolor='r', markeredgecolor='k', markersize=4)
-        ax.set_xlabel('Years', fontsize=size)
-        ax.set_ylabel('Principal and Earnings ($M)', fontsize=size)
-
-        st.pyplot(fig)
-
-# Streamlit UI
-def create_investment_dashboard():
-    st.title("Automatic Investment Strategy Calculator")
-    
-    price = st.number_input("Investment per period ($)", min_value=100, value=4000)
-    years = st.number_input("Investment Duration (Years)", min_value=1, value=35)
-    times = st.number_input("Investment Frequency (Times per Year)", min_value=1, value=12)
-    yearly_return_rate = st.slider("Annual yearly_return Rate (%)", min_value=0, max_value=30, value=12) / 100
-
-    print_details = st.checkbox("Print Investment Details", value=True)
-    show_graph = st.checkbox("Show Investment Growth Graph", value=True)
-    save_graph = st.checkbox("Save Graph", value=False)
-
-    # Calculate total earnings when user presses the button
-    if st.button("Calculate Total Earnings"):
-        investment = Investment(price, years, times, yearly_return_rate, print_value=print_details, graph_bool=show_graph, save=save_graph)
-        total_earnings = investment.Auto_Investment_calculator()
-        st.write(f"Total Earnings after {years} years: ${total_earnings:,.2f}")
-        
-# Run the dashboard
 if __name__ == "__main__":
-    create_investment_dashboard()
-
-# streamlit run c:/users/92412/Desktop/Investment/auto_investment/automatic_investment_plan.py
+    raise SystemExit(main())

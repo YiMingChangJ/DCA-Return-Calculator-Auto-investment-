@@ -1,0 +1,10 @@
+"""Pytest configuration: make the ``dca`` package importable when running
+tests from the DCA project folder."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
