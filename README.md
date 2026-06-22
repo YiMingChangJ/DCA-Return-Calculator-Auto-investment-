@@ -152,3 +152,11 @@ From this folder:
 annuity-due relationship, both compounding conventions, initial-capital
 compounding, inflation columns, contribution growth, Monte Carlo determinism
 under a fixed seed, and percentile ordering.
+
+## Author
+
+**Yi Ming Chang** — [@YiMingChangJ](https://github.com/YiMingChangJ)
+
+## License
+
+Released under the terms of the [LICENSE](LICENSE) file in this folder.
