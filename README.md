@@ -16,6 +16,37 @@ module.
   $\mathcal{N}(\mu, \sigma^2)$ with a 10–90 % percentile fan and median path.
 - **CSV export** of the full year-by-year table.
 
+## Example output
+
+\$4,000/month for 35 years at 12 % annual return (effective compounding):
+
+<p align="center">
+  <img width="720" src="docs/dca_growth.png" alt="DCA growth, $4k/mo for 35y @ 12%">
+</p>
+
+Same horizon at a more realistic 8 % expected return, with 3 %/yr
+contribution growth, 2.5 %/yr inflation, and a 10–90 % Monte Carlo fan
+(σ = 15 %, 2,000 paths):
+
+<p align="center">
+  <img width="720" src="docs/dca_growth_mc.png" alt="DCA with Monte Carlo overlay">
+</p>
+
+Regenerate these figures with:
+
+```bash
+python automatic_investment_plan.py \
+    --contribution 4000 --years 35 --times 12 --return 0.12 \
+    --save-plot docs/dca_growth.png \
+    --csv docs/dca_year_by_year.csv
+
+python automatic_investment_plan.py \
+    --contribution 4000 --years 35 --times 12 --return 0.08 \
+    --growth 0.03 --inflation 0.025 \
+    --mc --mc-sigma 0.15 --mc-paths 2000 \
+    --save-plot docs/dca_growth_mc.png
+```
+
 ## Project structure
 
 ```text
@@ -24,11 +55,12 @@ module.
 │   ├── __init__.py
 │   ├── investment.py        # SimulationParams + simulate() + summary()
 │   ├── monte_carlo.py       # monte_carlo() with percentile output
-│   └── plotting.py          # matplotlib helpers
+│   └── plotting.py          # matplotlib helpers (serif + mathtext)
 ├── tests/
 │   ├── conftest.py
 │   ├── test_investment.py   # closed-form annuity FV checks
 │   └── test_monte_carlo.py
+├── docs/                    # generated README figures (PNGs are tracked)
 ├── automatic_investment_plan.py   # CLI entry point
 ├── Interactive_dashboard.py       # Streamlit dashboard
 ├── LICENSE
@@ -61,12 +93,19 @@ download button.
 ```bash
 python automatic_investment_plan.py \
     --contribution 4000 --years 35 --times 12 --return 0.12 \
-    --plot --csv year_by_year.csv
+    --save-plot docs/dca_growth.png \
+    --csv docs/dca_year_by_year.csv
 ```
 
+If you pass neither `--plot` nor `--save-plot`, the script auto-saves a
+default chart to `docs/dca_growth.png` so it shows up in the README. Use
+`--no-plot` to skip plotting entirely, `--plot` to also open a window, and
+`--mc` to add a Monte Carlo overlay (tunable via `--mc-sigma`,
+`--mc-paths`, `--mc-seed`).
+
 `python automatic_investment_plan.py --help` lists every option (initial
-capital, contribution growth, inflation, compounding convention, end-vs-begin
-timing, save plot to file, …).
+capital, contribution growth, inflation, compounding convention,
+end-vs-begin timing, save plot to file, …).
 
 ### Library
 

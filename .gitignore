@@ -36,6 +36,11 @@ Investment_t=*.jpg
 Investment_t=*.pdf
 Investment_t=*.png
 
+# Keep README assets generated under docs/
+!docs/
+!docs/*.png
+!docs/*.jpg
+
 # --- Secrets ---
 .env
 *.local

@@ -2,6 +2,13 @@
 
 Kept separate from the core math so that headless / test environments do not
 pull in matplotlib.
+
+Style notes
+-----------
+Uses matplotlib's built-in *mathtext* (not full LaTeX) with a serif font
+family, so labels render in a LaTeX-like style without requiring a TeX
+install on the host machine. Set ``use_tex=True`` in :func:`plot_growth`
+to switch to real LaTeX rendering when ``usetex`` is available locally.
 """
 from __future__ import annotations
 
@@ -16,6 +23,26 @@ from dca.investment import SimulationParams
 from dca.monte_carlo import MonteCarloResult
 
 
+def _apply_style(use_tex: bool = False, base_size: int = 14) -> None:
+    """Apply a serif / mathtext style consistent with the original notebook plots."""
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["DejaVu Serif", "Times New Roman", "Times"],
+            "mathtext.fontset": "cm",  # Computer Modern -- LaTeX look
+            "axes.titlesize": base_size + 2,
+            "axes.labelsize": base_size + 2,
+            "xtick.labelsize": base_size,
+            "ytick.labelsize": base_size,
+            "legend.fontsize": base_size - 2,
+            "lines.linewidth": 2.5,
+            "axes.grid": True,
+            "grid.alpha": 0.3,
+            "text.usetex": bool(use_tex),
+        }
+    )
+
+
 def plot_growth(
     df: pd.DataFrame,
     params: SimulationParams,
@@ -24,8 +51,22 @@ def plot_growth(
     show_principal: bool = True,
     mc: Optional[MonteCarloResult] = None,
     ax: Optional[Axes] = None,
+    use_tex: bool = False,
+    annotate: bool = True,
 ) -> Figure:
-    """Plot the DCA growth trajectory with optional overlays."""
+    """Plot the DCA growth trajectory with optional overlays.
+
+    Parameters
+    ----------
+    use_tex : bool
+        If True, use a full LaTeX install via ``text.usetex``. Requires a
+        working TeX distribution on the host. Defaults to False (mathtext).
+    annotate : bool
+        If True, draw the original-style inline annotations
+        (``amount``, ``times``, ``r``) in the upper-left corner.
+    """
+    _apply_style(use_tex=use_tex)
+
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 5))
     else:
@@ -40,11 +81,12 @@ def plot_growth(
     ax.plot(
         years,
         balance_m,
+        linestyle="-",
         marker="o",
         markersize=4,
         markerfacecolor="r",
         markeredgecolor="k",
-        linewidth=2,
+        linewidth=2.5,
         label="DCA portfolio",
     )
 
@@ -82,7 +124,7 @@ def plot_growth(
             p["p90"].to_numpy() / 1e6,
             alpha=0.2,
             color="tab:orange",
-            label="MC 10-90%",
+            label=r"MC $10\!-\!90\%$",
         )
         ax.plot(
             p["year"].to_numpy(),
@@ -93,13 +135,32 @@ def plot_growth(
             label="MC median",
         )
 
-    ax.set_xlabel("Years")
-    ax.set_ylabel("Portfolio value ($M)")
-    ax.set_title(
-        f"DCA: ${params.contribution:,.0f} x {params.times_per_year}/yr "
-        f"for {params.years}y @ {params.annual_return * 100:.1f}%/yr"
-    )
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="upper left", fontsize=9)
+    ax.set_xlabel(r"Years")
+    ax.set_ylabel(r"Principal and Earnings (\$M)")
+
+    if annotate:
+        # Original notebook-style inline annotations in upper-left of axes.
+        txt_lines = [
+            rf"amount $= \${params.contribution:,.0f}$",
+            rf"times $= {params.times_per_year}$",
+            rf"$r = {params.annual_return * 100:.1f}\,\%$",
+        ]
+        if params.contribution_growth:
+            txt_lines.append(rf"$g = {params.contribution_growth * 100:.1f}\,\%$")
+        if params.inflation:
+            txt_lines.append(rf"$\pi = {params.inflation * 100:.1f}\,\%$")
+        ax.text(
+            0.03,
+            0.97,
+            "\n".join(txt_lines),
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=12,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=4),
+        )
+
+    ax.legend(loc="upper left", bbox_to_anchor=(0.0, 0.78), frameon=False)
     fig.tight_layout()
     return fig
+
